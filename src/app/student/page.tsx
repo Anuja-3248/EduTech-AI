@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BadgeCheck, CalendarCheck, Download, FileCheck2, IdCard, ShieldCheck, UserRoundCheck } from "lucide-react";
 import { GlassCard, PageFrame, PremiumWidget, ProgressBar, SectionTitle, StatusPill } from "@/components/ui";
 
@@ -27,7 +28,17 @@ export default function StudentDashboard() {
         </GlassCard>
 
         <GlassCard>
-          <SectionTitle title="Verification Status" />
+          <SectionTitle
+            title="Verification Status"
+            action={
+              <Link
+                href="/face-verification"
+                className="rounded-full bg-[#2E7D5B] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#256A4E]"
+              >
+                Open Face Check
+              </Link>
+            }
+          />
           <div className="grid gap-4 sm:grid-cols-3">
             {[
               ["Face Match", "99.2%", UserRoundCheck],

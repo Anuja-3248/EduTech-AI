@@ -15,6 +15,7 @@ import { GlowPulse, MotionCard, Reveal } from "@/components/motion";
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/student", label: "Student" },
+  { href: "/face-verification", label: "Face Verify" },
   { href: "/authority", label: "Authority" },
   { href: "/vault", label: "Vault" },
   { href: "/monitoring", label: "Monitoring" },
