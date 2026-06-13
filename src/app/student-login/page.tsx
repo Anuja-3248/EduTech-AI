@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { ArrowLeft, CheckCircle2, Loader2, LockKeyhole, ShieldCheck, UserPlus, UserRound } from "lucide-react";
 import { AppShell } from "@/components/ui";
 
@@ -30,30 +32,58 @@ export default function StudentLoginPage() {
     setMessage("");
 
     try {
-      const response = await fetch("/api/student/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName,
-          registrationNumber,
-          email,
-          mobile,
-          dob,
-          password,
-          confirmPassword,
-          captcha,
-          institution,
-          examName,
-        }),
-      });
-      const result = (await response.json()) as { error?: string; message?: string };
+      const { auth, db } = await import("@/lib/firebase");
+      const normalizedRegistration = registrationNumber.trim().toUpperCase();
+      const normalizedEmail = email.trim().toLowerCase();
 
-      if (!response.ok) {
-        throw new Error(result.error ?? "Could not create account.");
+      if (!fullName.trim() || !normalizedRegistration || !normalizedEmail || !mobile.trim() || !dob || !password || !confirmPassword || !captcha.trim()) {
+        throw new Error("Please fill all required signup fields.");
       }
 
+      if (password.length < 6) {
+        throw new Error("Password must be at least 6 characters.");
+      }
+
+      if (password !== confirmPassword) {
+        throw new Error("Password and confirm password do not match.");
+      }
+
+      if (captcha.trim() !== "12") {
+        throw new Error("Captcha answer is incorrect.");
+      }
+
+      const registrationRef = doc(db, "registrationNumbers", normalizedRegistration);
+      const registrationSnapshot = await getDoc(registrationRef);
+
+      if (registrationSnapshot.exists()) {
+        throw new Error("An account already exists for this registration number.");
+      }
+
+      const credential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+      const uid = credential.user.uid;
+
+      await setDoc(doc(db, "students", uid), {
+        uid,
+        fullName: fullName.trim(),
+        registrationNumber: normalizedRegistration,
+        email: normalizedEmail,
+        mobile: mobile.trim(),
+        dob,
+        institution: institution.trim(),
+        examName: examName.trim(),
+        faceRegistered: false,
+        verificationStatus: "Face Pending",
+        createdAt: serverTimestamp(),
+      });
+
+      await setDoc(registrationRef, {
+        uid,
+        email: normalizedEmail,
+        createdAt: serverTimestamp(),
+      });
+
       setStatus("success");
-      setMessage(result.message ?? "Account created. Redirecting to face registration...");
+      setMessage("Account created. Redirecting to face registration...");
       setCaptcha("");
       setConfirmPassword("");
       router.push("/face-verification?next=/student-login");
@@ -70,24 +100,40 @@ export default function StudentLoginPage() {
     setMessage("");
 
     try {
-      const response = await fetch("/api/student/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registrationNumber, password }),
-      });
-      const result = (await response.json()) as { error?: string; next?: string; account?: { registrationNumber: string; fullName: string } };
+      const { auth, db } = await import("@/lib/firebase");
+      const normalizedRegistration = registrationNumber.trim().toUpperCase();
 
-      if (!response.ok) {
-        throw new Error(result.error ?? "Login failed.");
+      if (!normalizedRegistration || !password) {
+        throw new Error("Registration number and password are required.");
       }
 
-      if (result.account) {
-        localStorage.setItem("edutrust-student-session", JSON.stringify(result.account));
+      const registrationSnapshot = await getDoc(doc(db, "registrationNumbers", normalizedRegistration));
+
+      if (!registrationSnapshot.exists()) {
+        throw new Error("No account found for this registration number.");
       }
+
+      const registrationData = registrationSnapshot.data() as { email?: string; uid?: string };
+      if (!registrationData.email || !registrationData.uid) {
+        throw new Error("Student account record is incomplete.");
+      }
+
+      const credential = await signInWithEmailAndPassword(auth, registrationData.email, password);
+      const studentSnapshot = await getDoc(doc(db, "students", credential.user.uid));
+      const student = studentSnapshot.data() as { fullName?: string; registrationNumber?: string } | undefined;
+
+      localStorage.setItem(
+        "edutrust-student-session",
+        JSON.stringify({
+          uid: credential.user.uid,
+          fullName: student?.fullName ?? "Student",
+          registrationNumber: student?.registrationNumber ?? normalizedRegistration,
+        }),
+      );
 
       setStatus("success");
-      setMessage("Login successful. Redirecting to face verification...");
-      router.push(result.next ?? "/face-verification?next=/student");
+      setMessage("Login successful. Opening student dashboard...");
+      router.push("/student");
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Login failed.");
@@ -112,15 +158,15 @@ export default function StudentLoginPage() {
               </span>
               <h1 className="mt-5 text-4xl font-medium tracking-normal text-slate-950">Student Access</h1>
               <p className="mt-3 max-w-md text-base leading-7 text-slate-600">
-                New students create an EduTrust account, register their face template, then login with password plus face verification.
+                New students create an EduTrust account and register their face once. Daily login only needs registration number and password.
               </p>
             </div>
 
             <div className="mt-10 space-y-4">
               <FlowStep complete label="Create account with basic details" />
+              <FlowStep complete={mode === "signup"} label="Register face once after signup" />
               <FlowStep complete={mode === "login"} label="Login with registration number and password" />
-              <FlowStep label="Verify face with blink/smile liveness" />
-              <FlowStep label="Login success and open dashboard" />
+              <FlowStep label="Face verification is required on exam day" />
             </div>
           </section>
 
@@ -158,7 +204,7 @@ export default function StudentLoginPage() {
                 <div>
                   <h2 className="text-2xl font-medium text-slate-950">{mode === "login" ? "Login to your account" : "Create student account"}</h2>
                   <p className="text-sm text-slate-500">
-                    {mode === "login" ? "Use registration number, password, then verify face." : "Fill details and complete face registration after account creation."}
+                    {mode === "login" ? "Use registration number and password." : "Fill details and complete face registration after account creation."}
                   </p>
                 </div>
               </div>
@@ -204,15 +250,14 @@ export default function StudentLoginPage() {
                   className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#2E7D5B] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#256A4E] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? <Loader2 className="animate-spin" size={17} /> : <LockKeyhole size={17} />}
-                  {mode === "login" ? "Verify Face and Login" : "Create Account and Register Face"}
+                  {mode === "login" ? "Login" : "Create Account and Register Face"}
                 </button>
 
                 {message && <ResultMessage message={message} status={status} />}
 
                 {mode === "login" && (
                   <p className="text-center text-sm text-slate-500">
-                    Demo login: <span className="font-semibold text-slate-700">EDU12345</span> /{" "}
-                    <span className="font-semibold text-slate-700">student123</span>
+                    Use the registration number and password you created during signup.
                   </p>
                 )}
               </div>

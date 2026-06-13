@@ -18,8 +18,10 @@ import {
   Upload,
   UserRound,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { doc, getDoc } from "firebase/firestore";
 import { AppShell, GlassCard, ProgressBar, SectionTitle, StatusPill } from "@/components/ui";
+import { db } from "@/lib/firebase";
 import type { StudentExam, StudentPortalData } from "@/lib/student-portal-types";
 
 type StudentSection = "dashboard" | "profile" | "verification" | "exams" | "notifications" | "complaints" | "settings";
@@ -65,10 +67,81 @@ const sectionTitles: Record<StudentSection, { title: string; subtitle: string }>
   },
 };
 
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
 export function StudentPortal({ initialData }: { initialData: StudentPortalData }) {
   const [activeSection, setActiveSection] = useState<StudentSection>("dashboard");
   const [portalData, setPortalData] = useState<StudentPortalData>(initialData);
+  const [profileSource, setProfileSource] = useState("Demo data");
   const activeCopy = sectionTitles[activeSection];
+
+  useEffect(() => {
+    async function loadLoggedInStudent() {
+      const rawSession = localStorage.getItem("edutrust-student-session");
+      if (!rawSession) {
+        return;
+      }
+
+      try {
+        const session = JSON.parse(rawSession) as { uid?: string; fullName?: string; registrationNumber?: string };
+        if (!session.uid) {
+          return;
+        }
+
+        const snapshot = await getDoc(doc(db, "students", session.uid));
+        if (!snapshot.exists()) {
+          return;
+        }
+
+        const student = snapshot.data() as {
+          fullName?: string;
+          registrationNumber?: string;
+          email?: string;
+          mobile?: string;
+          dob?: string;
+          institution?: string;
+          examName?: string;
+          faceRegistered?: boolean;
+          verificationStatus?: string;
+        };
+
+        const fullName = student.fullName ?? session.fullName ?? "Student";
+        const registrationNumber = student.registrationNumber ?? session.registrationNumber ?? "Pending";
+
+        setPortalData((current) => ({
+          ...current,
+          profile: {
+            ...current.profile,
+            name: fullName,
+            initials: getInitials(fullName),
+            verificationId: registrationNumber,
+            dob: student.dob ?? current.profile.dob,
+            governmentId: registrationNumber,
+            email: student.email ?? current.profile.email,
+            phone: student.mobile ?? current.profile.phone,
+            photoStatus: student.faceRegistered ? "Face Registered" : "Face Pending",
+            profileStatus: student.verificationStatus ?? current.profile.profileStatus,
+          },
+          nextExam: {
+            ...current.nextExam,
+            name: student.examName || current.nextExam.name,
+          },
+        }));
+        setProfileSource("Firebase profile");
+      } catch {
+        setProfileSource("Demo data");
+      }
+    }
+
+    void loadLoggedInStudent();
+  }, []);
 
   async function loadPortalData() {
     const response = await fetch("/api/student", { cache: "no-store" });
@@ -90,6 +163,7 @@ export function StudentPortal({ initialData }: { initialData: StudentPortalData 
               <div>
                 <p className="font-medium text-slate-950">{portalData.profile.name}</p>
                 <p className="text-xs font-semibold text-slate-500">{portalData.profile.verificationId}</p>
+                <p className="mt-1 text-[11px] font-semibold text-emerald-700">{profileSource}</p>
               </div>
             </div>
 
@@ -138,15 +212,15 @@ export function StudentPortal({ initialData }: { initialData: StudentPortalData 
 function DashboardPanel({ data, onNavigate }: { data: StudentPortalData; onNavigate: (section: StudentSection) => void }) {
   return (
     <div className="grid gap-5">
-      <div className="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
+      <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         <GlassCard>
-          <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
-            <div>
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <div className="min-w-0">
               <p className="text-sm font-medium uppercase text-emerald-700">Next Exam</p>
-              <h2 className="mt-2 text-3xl font-medium text-slate-950">{data.nextExam.name}</h2>
+              <h2 className="mt-2 text-3xl font-medium leading-tight text-slate-950">{data.nextExam.name}</h2>
               <p className="mt-2 text-sm leading-6 text-slate-500">Your identity pass and exam eligibility are ready.</p>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:w-auto">
               <CountdownBox value={String(data.nextExam.daysRemaining).padStart(2, "0")} label="Days" />
               <CountdownBox value={String(data.nextExam.hoursRemaining).padStart(2, "0")} label="Hours" />
               <CountdownBox value="Remaining" label="Status" compact />
@@ -291,6 +365,18 @@ function ExamDetails({ exam }: { exam: StudentExam }) {
         <InfoRow label="Center" value={exam.center} />
         <InfoRow label="Eligibility" value={exam.eligibility} />
       </div>
+      {exam.status === "Registered" ? (
+        <Link
+          href={`/face-verification?next=/student`}
+          className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-[#2E7D5B] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#256A4E]"
+        >
+          Verify Face for Exam
+        </Link>
+      ) : (
+        <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+          Face verification is available only for registered exams.
+        </div>
+      )}
     </GlassCard>
   );
 }
@@ -420,8 +506,8 @@ function ErrorPanel({ message }: { message: string }) {
 
 function CountdownBox({ value, label, compact = false }: { value: string; label: string; compact?: boolean }) {
   return (
-    <div className="min-w-24 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-center">
-      <p className={`${compact ? "text-lg" : "text-3xl"} font-medium text-emerald-800`}>{value}</p>
+    <div className="min-w-0 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-center sm:min-w-24">
+      <p className={`${compact ? "text-base" : "text-3xl"} break-words font-medium leading-tight text-emerald-800`}>{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase text-emerald-700">{label}</p>
     </div>
   );
