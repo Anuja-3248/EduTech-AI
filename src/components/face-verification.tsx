@@ -18,6 +18,7 @@ import { GlassCard, ProgressBar, SectionTitle, StatusPill } from "@/components/u
 
 type FaceMode = "home" | "register" | "verify";
 type VerificationStatus = "waiting" | "success" | "error" | null;
+type PendingCapture = "register" | "verify" | null;
 
 type LivenessChecks = {
   blink: boolean;
@@ -117,6 +118,7 @@ function isVideoReady(video: HTMLVideoElement | undefined | null): video is HTML
 export function FaceVerification() {
   const webcamRef = useRef<Webcam>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activeCaptureRef = useRef<PendingCapture>(null);
 
   const [mode, setMode] = useState<FaceMode>("home");
   const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -182,6 +184,7 @@ export function FaceVerification() {
     setVerifyLoading(false);
     setRegLoading(false);
     setFoundStudent(null);
+    activeCaptureRef.current = null;
     setRegAttemptStarted(false);
     setRegLivenessChecks(createEmptyChecks());
     setVerifyLivenessChecks(createEmptyChecks());
@@ -364,11 +367,16 @@ export function FaceVerification() {
     setRegLoading(true);
     setRegAttemptStarted(true);
     setRegStatus("waiting");
-    setRegResult("Starting liveness detection...");
+    activeCaptureRef.current = "register";
+    setRegResult("Starting camera. Allow camera permission if the browser asks.");
     setRegLivenessChecks(createEmptyChecks());
+  }
 
+  function runRegistrationCapture() {
     detectLivenessAndFace(
       (descriptor) => {
+        activeCaptureRef.current = null;
+
         if (!descriptor) {
           setRegLoading(false);
           setRegStatus("error");
@@ -417,16 +425,18 @@ export function FaceVerification() {
 
     setFoundStudent(student);
     setVerifyStatus("waiting");
-    setVerifyResult(`Found ${student.studentName}. Starting liveness verification...`);
-    startVerification(student);
+    setVerifyLoading(true);
+    activeCaptureRef.current = "verify";
+    setVerifyResult(`Found ${student.studentName}. Starting camera. Allow camera permission if the browser asks.`);
   }
 
   function startVerification(student: StudentRecord) {
-    setVerifyLoading(true);
     setVerifyLivenessChecks(createEmptyChecks());
 
     detectLivenessAndFace(
       (liveDescriptor) => {
+        activeCaptureRef.current = null;
+
         if (!liveDescriptor) {
           setVerifyLoading(false);
           setVerifyStatus("error");
@@ -536,7 +546,23 @@ export function FaceVerification() {
                 </button>
               </>
             ) : (
-              <CameraPanel webcamRef={webcamRef} />
+              <CameraPanel
+                webcamRef={webcamRef}
+                onCameraReady={() => {
+                  if (activeCaptureRef.current !== "register") {
+                    return;
+                  }
+
+                  activeCaptureRef.current = null;
+                  setRegResult("Camera is ready. Keep your face inside the frame. Blink once, smile, then turn your head slightly.");
+                  runRegistrationCapture();
+                }}
+                onCameraError={(message) => {
+                  activeCaptureRef.current = null;
+                  setRegLoading(false);
+                  setRegResult(message);
+                }}
+              />
             )}
             <ResultPanel message={regResult} status={regStatus} />
             {regAttemptStarted && <LivenessGrid checks={regLivenessChecks} />}
@@ -556,7 +582,24 @@ export function FaceVerification() {
               </>
             ) : (
               <>
-                <CameraPanel webcamRef={webcamRef} />
+                <CameraPanel
+                  webcamRef={webcamRef}
+                  onCameraReady={() => {
+                    if (activeCaptureRef.current !== "verify" || !foundStudent) {
+                      return;
+                    }
+
+                    activeCaptureRef.current = null;
+                    setVerifyResult("Camera is ready. Keep your face inside the frame. Blink once, smile, then turn your head slightly.");
+                    startVerification(foundStudent);
+                  }}
+                  onCameraError={(message) => {
+                    activeCaptureRef.current = null;
+                    setVerifyLoading(false);
+                    setVerifyStatus("error");
+                    setVerifyResult(message);
+                  }}
+                />
                 <LivenessGrid checks={verifyLivenessChecks} />
                 {!verifyLoading && (
                   <button
@@ -621,21 +664,78 @@ function InputField({
   );
 }
 
-function CameraPanel({ webcamRef }: { webcamRef: React.RefObject<Webcam | null> }) {
+function getCameraErrorMessage(error: string | DOMException) {
+  const name = typeof error === "string" ? error : error.name;
+
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+    return "Camera permission was blocked. Click the camera icon in the address bar, allow camera access for localhost, then try again.";
+  }
+
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    return "No camera was found on this device. Connect or enable a camera, then try again.";
+  }
+
+  if (name === "NotReadableError" || name === "TrackStartError") {
+    return "The camera is already in use by another app. Close other camera apps or browser tabs, then try again.";
+  }
+
+  if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
+    return "The selected camera does not support the requested settings. Try again with another camera.";
+  }
+
+  return "Camera could not start. Check browser camera permission and try again.";
+}
+
+function CameraPanel({
+  webcamRef,
+  onCameraReady,
+  onCameraError,
+}: {
+  webcamRef: React.RefObject<Webcam | null>;
+  onCameraReady: () => void;
+  onCameraError: (message: string) => void;
+}) {
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-950">
-      <Webcam
-        ref={webcamRef}
-        audio={false}
-        screenshotFormat="image/jpeg"
-        mirrored
-        videoConstraints={{
-          width: 640,
-          height: 480,
-          facingMode: "user",
-        }}
-        className="aspect-video w-full object-cover"
-      />
+      <div className="relative aspect-video w-full">
+        <Webcam
+          ref={webcamRef}
+          audio={false}
+          mirrored
+          screenshotFormat="image/jpeg"
+          videoConstraints={{
+            facingMode: "user",
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          }}
+          onUserMedia={() => {
+            setCameraReady(true);
+            setCameraError("");
+            onCameraReady();
+          }}
+          onUserMediaError={(error) => {
+            const message = getCameraErrorMessage(error);
+            setCameraReady(false);
+            setCameraError(message);
+            onCameraError(message);
+          }}
+          className="h-full w-full object-cover"
+        />
+        {!cameraReady && !cameraError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950 text-sm font-semibold text-white">
+            <Loader2 className="animate-spin" size={22} />
+            Starting camera...
+          </div>
+        )}
+        {cameraError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-950 p-5 text-center text-sm font-semibold leading-6 text-rose-100">
+            {cameraError}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
