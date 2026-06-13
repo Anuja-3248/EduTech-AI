@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Webcam from "react-webcam";
 import * as faceapi from "face-api.js";
@@ -116,6 +118,8 @@ function isVideoReady(video: HTMLVideoElement | undefined | null): video is HTML
 }
 
 export function FaceVerification() {
+  const searchParams = useSearchParams();
+  const nextUrl = searchParams.get("next") ?? "/student";
   const webcamRef = useRef<Webcam>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const activeCaptureRef = useRef<PendingCapture>(null);
@@ -565,6 +569,7 @@ export function FaceVerification() {
               />
             )}
             <ResultPanel message={regResult} status={regStatus} />
+            {regStatus === "success" && <ContinueToDashboard href={nextUrl} />}
             {regAttemptStarted && <LivenessGrid checks={regLivenessChecks} />}
           </div>
         ) : (
@@ -617,6 +622,7 @@ export function FaceVerification() {
               </>
             )}
             <ResultPanel message={verifyResult} status={verifyStatus} />
+            {verifyStatus === "success" && <ContinueToDashboard href={nextUrl} />}
           </div>
         )}
       </GlassCard>
@@ -637,6 +643,17 @@ export function FaceVerification() {
         </div>
       </GlassCard>
     </div>
+  );
+}
+
+function ContinueToDashboard({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex w-full items-center justify-center rounded-full bg-[#2E7D5B] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#256A4E]"
+    >
+      Continue to Student Dashboard
+    </Link>
   );
 }
 

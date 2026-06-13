@@ -50,7 +50,7 @@ export default function LoginPage() {
 
               <div className="mt-10 space-y-5">
                 <Link
-                  href="/face-verification"
+                  href="/student-login"
                   className="group flex min-h-[78px] w-full items-center justify-center gap-5 rounded-lg bg-gradient-to-r from-[#7357ff] to-[#2f10e7] px-6 text-lg font-semibold text-white shadow-[0_14px_28px_rgba(77,54,224,0.24)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(77,54,224,0.34)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f35e8] focus-visible:ring-offset-4 focus-visible:ring-offset-[#f4f2ff]"
                 >
                   <UserRound size={26} strokeWidth={2.2} />
