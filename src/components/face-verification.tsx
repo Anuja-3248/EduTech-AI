@@ -45,9 +45,12 @@ const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/";
 const STORAGE_KEY = "edutrust-face-students";
 
 const LIVENESS_TIMEOUT_MS = 14000;
-const BLINK_THRESHOLD = 0.31;
 const SMILE_THRESHOLD = 0.45;
 const HEAD_TURN_THRESHOLD = 10;
+const FACE_DETECTOR_OPTIONS = new faceapi.TinyFaceDetectorOptions({
+  inputSize: 224,
+  scoreThreshold: 0.5,
+});
 
 function createEmptyChecks(): LivenessChecks {
   return {
@@ -102,6 +105,15 @@ function eyeAspectRatio(leftEye: Point[], rightEye: Point[]) {
   return (left + right) / 2;
 }
 
+function isVideoReady(video: HTMLVideoElement | undefined | null): video is HTMLVideoElement {
+  if (!video || video.readyState < 3 || video.videoWidth < 2 || video.videoHeight < 2) {
+    return false;
+  }
+
+  const box = video.getBoundingClientRect();
+  return box.width > 0 && box.height > 0;
+}
+
 export function FaceVerification() {
   const webcamRef = useRef<Webcam>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -113,6 +125,7 @@ export function FaceVerification() {
   const [regStudentID, setRegStudentID] = useState("");
   const [regStudentName, setRegStudentName] = useState("");
   const [regResult, setRegResult] = useState("");
+  const [regStatus, setRegStatus] = useState<VerificationStatus>(null);
   const [regLoading, setRegLoading] = useState(false);
   const [regAttemptStarted, setRegAttemptStarted] = useState(false);
   const [regLivenessChecks, setRegLivenessChecks] = useState<LivenessChecks>(createEmptyChecks);
@@ -163,6 +176,7 @@ export function FaceVerification() {
 
     setMode("home");
     setRegResult("");
+    setRegStatus(null);
     setVerifyResult("");
     setVerifyStatus(null);
     setVerifyLoading(false);
@@ -181,17 +195,52 @@ export function FaceVerification() {
   ) {
     let blinkCount = 0;
     let smileDetected = false;
-    let eyesClosedFrames = 0;
+    let closedEyeFrames = 0;
+    let openEyeBaseline = 0;
+    let blinkClosingDetected = false;
+    let faceFrames = 0;
     let headTurnDetected = false;
-    let faceDescriptor: Float32Array | null = null;
     let maxHeadTurn = 0;
     let initialNoseX: number | null = null;
     const startTime = Date.now();
 
     let completed = false;
 
-    function finishIfReady() {
-      if (completed || blinkCount < 1 || !smileDetected || !headTurnDetected || !faceDescriptor) {
+    async function captureDescriptor() {
+      const video = webcamRef.current?.video;
+      if (!isVideoReady(video)) {
+        return null;
+      }
+
+      try {
+        const detection = await faceapi
+          .detectSingleFace(video, FACE_DETECTOR_OPTIONS)
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        return detection?.descriptor ?? null;
+      } catch {
+        return null;
+      }
+    }
+
+    async function captureDescriptorWithRetry() {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const descriptor = await captureDescriptor();
+        if (descriptor) {
+          return descriptor;
+        }
+
+        await new Promise((resolve) => {
+          setTimeout(resolve, 180);
+        });
+      }
+
+      return null;
+    }
+
+    async function finishIfReady() {
+      if (completed || blinkCount < 1 || !smileDetected || !headTurnDetected) {
         return;
       }
 
@@ -201,8 +250,17 @@ export function FaceVerification() {
       }
 
       setLivenessChecks({ blink: true, smile: true, headTurn: true });
-      setStatusMessage("All liveness checks completed. Face captured successfully.");
-      setTimeout(() => onComplete(faceDescriptor), 650);
+      setStatusMessage("All liveness checks completed. Capturing face signature...");
+
+      const descriptor = await captureDescriptorWithRetry();
+      if (!descriptor) {
+        setStatusMessage("Liveness passed, but face signature could not be captured. Keep your face centered and try again.");
+        onComplete(null);
+        return;
+      }
+
+      setStatusMessage("Face signature captured successfully.");
+      setTimeout(() => onComplete(descriptor), 450);
     }
 
     setStatusMessage("Keep your face inside the frame. Blink once, smile, then turn your head slightly.");
@@ -220,7 +278,7 @@ export function FaceVerification() {
         if (blinkCount >= 1 && smileDetected && headTurnDetected) {
           setLivenessChecks({ blink: true, smile: true, headTurn: true });
           setStatusMessage("All liveness checks completed. Face captured successfully.");
-          onComplete(faceDescriptor);
+          void finishIfReady();
         } else {
           setStatusMessage("Time is up. Please complete blink, smile, and head turn, then try again.");
           onComplete(null);
@@ -229,35 +287,45 @@ export function FaceVerification() {
       }
 
       const video = webcamRef.current?.video;
-      if (!video || video.readyState < 2) {
+      if (!isVideoReady(video)) {
         return;
       }
 
       try {
         const detection = await faceapi
-          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+          .detectSingleFace(video, FACE_DETECTOR_OPTIONS)
           .withFaceLandmarks()
-          .withFaceExpressions()
-          .withFaceDescriptor();
+          .withFaceExpressions();
 
         if (!detection) {
           return;
         }
 
-        faceDescriptor = detection.descriptor;
         const landmarks = detection.landmarks;
         const expressions = detection.expressions;
         const ratio = eyeAspectRatio(landmarks.getLeftEye(), landmarks.getRightEye());
 
-        if (ratio < BLINK_THRESHOLD) {
-          eyesClosedFrames += 1;
-        } else {
-          if (eyesClosedFrames >= 1 && blinkCount === 0) {
-            blinkCount += 1;
-            setLivenessChecks((current) => ({ ...current, blink: true }));
-            setStatusMessage("Blink detected. Now smile and turn your head.");
+        faceFrames += 1;
+        openEyeBaseline = Math.max(openEyeBaseline, ratio);
+        const blinkReady = faceFrames > 3 && openEyeBaseline > 0.16;
+        const closeThreshold = Math.max(0.14, openEyeBaseline * 0.9);
+        const reopenThreshold = Math.max(0.16, openEyeBaseline * 0.94);
+
+        if (blinkCount === 0 && blinkReady && ratio < closeThreshold) {
+          closedEyeFrames += 1;
+          blinkClosingDetected = closedEyeFrames >= 1;
+          if (blinkClosingDetected) {
+            setStatusMessage("Blink closing detected. Open your eyes to confirm.");
           }
-          eyesClosedFrames = 0;
+        } else if (blinkCount === 0 && blinkReady && blinkClosingDetected && ratio > reopenThreshold) {
+          blinkCount += 1;
+          closedEyeFrames = 0;
+          blinkClosingDetected = false;
+          setLivenessChecks((current) => ({ ...current, blink: true }));
+          setStatusMessage("Blink detected. Now smile and turn your head.");
+        } else if (ratio > reopenThreshold) {
+          closedEyeFrames = 0;
+          blinkClosingDetected = false;
         }
 
         if (!smileDetected && expressions.happy > SMILE_THRESHOLD) {
@@ -279,7 +347,7 @@ export function FaceVerification() {
           }
         }
 
-        finishIfReady();
+        void finishIfReady();
       } catch {
         setStatusMessage("Detection paused. Keep your camera steady and face visible.");
       }
@@ -289,11 +357,13 @@ export function FaceVerification() {
   function startRegistration() {
     if (!regStudentID.trim() || !regStudentName.trim()) {
       setRegResult("Please enter Student ID and full name.");
+      setRegStatus("error");
       return;
     }
 
     setRegLoading(true);
     setRegAttemptStarted(true);
+    setRegStatus("waiting");
     setRegResult("Starting liveness detection...");
     setRegLivenessChecks(createEmptyChecks());
 
@@ -301,6 +371,7 @@ export function FaceVerification() {
       (descriptor) => {
         if (!descriptor) {
           setRegLoading(false);
+          setRegStatus("error");
           return;
         }
 
@@ -315,13 +386,14 @@ export function FaceVerification() {
 
         if (existingIndex >= 0) {
           students[existingIndex] = newRecord;
-          setRegResult(`Face profile updated for ${newRecord.studentName}.`);
+          setRegResult(`Student registered successfully.\nFace profile updated for ${newRecord.studentName}.`);
         } else {
           students.push(newRecord);
-          setRegResult(`Registration complete for ${newRecord.studentName}.`);
+          setRegResult(`Student registered successfully.\nFace profile created for ${newRecord.studentName}.`);
         }
 
         writeStudents(students);
+        setRegStatus("success");
         setRegLoading(false);
       },
       setRegLivenessChecks,
@@ -417,6 +489,7 @@ export function FaceVerification() {
                   setMode("register");
                   setRegAttemptStarted(false);
                   setRegResult("");
+                  setRegStatus(null);
                   setRegLivenessChecks(createEmptyChecks());
                 }}
                 disabled={!modelsLoaded}
@@ -465,7 +538,7 @@ export function FaceVerification() {
             ) : (
               <CameraPanel webcamRef={webcamRef} />
             )}
-            <ResultPanel message={regResult} />
+            <ResultPanel message={regResult} status={regStatus} />
             {regAttemptStarted && <LivenessGrid checks={regLivenessChecks} />}
           </div>
         ) : (
@@ -551,7 +624,18 @@ function InputField({
 function CameraPanel({ webcamRef }: { webcamRef: React.RefObject<Webcam | null> }) {
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-950">
-      <Webcam ref={webcamRef} screenshotFormat="image/jpeg" mirrored className="aspect-video w-full object-cover" />
+      <Webcam
+        ref={webcamRef}
+        audio={false}
+        screenshotFormat="image/jpeg"
+        mirrored
+        videoConstraints={{
+          width: 640,
+          height: 480,
+          facingMode: "user",
+        }}
+        className="aspect-video w-full object-cover"
+      />
     </div>
   );
 }
