@@ -1,16 +1,14 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight,
   Eye,
   Fingerprint,
   LockKeyhole,
-  Network,
-  ShieldAlert,
-  ShieldCheck,
   Siren,
 } from "lucide-react";
-import { AppShell, FeatureIcon, GlassCard, MetricCard, featureCards } from "@/components/ui";
-import { nationalStats, workflow } from "@/lib/data";
+import { AppShell, FeatureIcon, GlassCard, featureCards } from "@/components/ui";
+import { workflow } from "@/lib/data";
 
 const problems = [
   { title: "Paper Leaks", icon: LockKeyhole, body: "Fragmented custody chains make sensitive papers vulnerable before exam day." },
@@ -23,12 +21,8 @@ export default function Home() {
   return (
     <AppShell>
       <main>
-        <section className="mx-auto grid min-h-[calc(100vh-74px)] max-w-7xl items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
-          <div className="float-in">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-[#2E7D5B]/10 px-4 py-2 text-sm font-semibold text-emerald-800">
-              <ShieldCheck size={16} />
-              National Exam Integrity & Transparency Platform
-            </div>
+        <section className="mx-auto grid min-h-[calc(100vh-74px)] max-w-7xl items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
+          <div className="float-in flex flex-col justify-center">
             <h1 className="text-balance max-w-4xl text-5xl font-medium leading-tight tracking-normal text-slate-950 sm:text-6xl lg:text-7xl">
               Making Every Exam Fair, Secure and Transparent
             </h1>
@@ -44,33 +38,16 @@ export default function Home() {
               </Link>
             </div>
           </div>
-          <GlassCard className="relative overflow-hidden p-0">
-            <div className="scanlines absolute inset-0 opacity-60" />
-            <div className="relative p-6 sm:p-8">
-              <div className="mb-8 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">National Integrity Grid</p>
-                  <p className="mt-2 text-3xl font-medium text-slate-950">Live exam pulse</p>
-                </div>
-                <span className="rounded-full bg-[#2E7D5B]/10 px-3 py-1 text-xs font-semibold text-emerald-700">Active</span>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {nationalStats.map((stat) => (
-                  <div key={stat.label} className="rounded-lg border border-slate-200 bg-white p-4">
-                    <p className="text-sm font-medium text-slate-500">{stat.label}</p>
-                    <p className="mt-3 text-3xl font-medium text-slate-950">{stat.value}</p>
-                    <p className="mt-2 text-xs font-semibold text-emerald-700">{stat.change}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-6 rounded-lg border border-emerald-300/20 bg-[#2E7D5B]/10 p-4">
-                <div className="flex items-center gap-3">
-                  <Network className="text-emerald-700" />
-                  <p className="text-sm font-medium text-slate-700">12,840 centers synced with encrypted audit trails.</p>
-                </div>
-              </div>
-            </div>
-          </GlassCard>
+          <div className="relative min-h-[360px] w-full overflow-hidden rounded-lg border border-slate-200 shadow-2xl shadow-slate-200/70 sm:min-h-[460px] lg:h-[calc(100vh-150px)] lg:min-h-[620px]">
+            <Image
+              src="/hero-students.jpg"
+              alt="College students studying together outdoors"
+              fill
+              priority
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              className="object-cover"
+            />
+          </div>
         </section>
 
         <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -122,14 +99,6 @@ export default function Home() {
                 <h3 className="text-xl font-medium text-slate-950">{feature.title}</h3>
                 <p className="mt-4 text-sm leading-7 text-slate-500">{feature.body}</p>
               </GlassCard>
-            ))}
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {nationalStats.map((stat) => (
-              <MetricCard key={stat.label} label={stat.label} value={stat.value} change={stat.change} icon={ShieldAlert} />
             ))}
           </div>
         </section>
