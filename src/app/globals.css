@@ -1,0 +1,173 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8faf7;
+  --foreground: #10231a;
+  --card: #ffffff;
+  --primary: #2e7d5b;
+  --accent: #f4b740;
+  --font-sans-app: "Inter", "Segoe UI", Roboto, Arial, Helvetica, sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --font-sans: var(--font-sans-app);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    linear-gradient(rgba(46, 125, 91, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(46, 125, 91, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 16% 8%, rgba(244, 183, 64, 0.14), transparent 26rem),
+    radial-gradient(circle at 86% 18%, rgba(46, 125, 91, 0.11), transparent 28rem),
+    linear-gradient(135deg, #f8faf7 0%, #eef5ec 48%, #fbfaf5 100%);
+  background-size: 28px 28px, 28px 28px, auto, auto, auto;
+  color: var(--foreground);
+  font-family: var(--font-sans-app);
+  text-rendering: geometricPrecision;
+}
+
+a,
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.glass {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(31, 59, 45, 0.1);
+  box-shadow: 0 16px 45px rgba(30, 41, 59, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.glass::before {
+  background: linear-gradient(90deg, transparent, rgba(46, 125, 91, 0.18), transparent);
+  content: "";
+  height: 1px;
+  left: 14%;
+  position: absolute;
+  right: 14%;
+  top: 0;
+}
+
+.glass::after {
+  background: radial-gradient(circle at 50% 0%, rgba(244, 183, 64, 0.1), transparent 45%);
+  content: "";
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 0.35s ease;
+}
+
+.glass:hover::after {
+  opacity: 1;
+}
+
+.premium-button {
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.35), 0 12px 30px rgba(46, 125, 91, 0.18);
+}
+
+.soft-border {
+  border: 1px solid rgba(31, 59, 45, 0.12);
+}
+
+.accent-glow {
+  box-shadow: 0 0 0 1px rgba(46, 125, 91, 0.14), 0 16px 34px rgba(46, 125, 91, 0.11);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.12), rgba(46, 125, 91, 0.12), rgba(148, 163, 184, 0.12));
+  background-size: 220% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -220% 0;
+  }
+}
+
+.scanlines {
+  background-image: linear-gradient(rgba(46, 125, 91, 0.07) 1px, transparent 1px);
+  background-size: 100% 18px;
+  animation: scan 5s linear infinite;
+}
+
+@keyframes scan {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: 0 180px;
+  }
+}
+
+@keyframes float-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.float-in {
+  animation: float-in 0.7s ease both;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 0.65rem;
+}
+
+.data-table th {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.data-table td {
+  background: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid rgba(31, 59, 45, 0.1);
+  border-top: 1px solid rgba(31, 59, 45, 0.1);
+  padding: 0.9rem;
+}
+
+.data-table td:first-child {
+  border-left: 1px solid rgba(31, 59, 45, 0.1);
+  border-radius: 8px 0 0 8px;
+}
+
+.data-table td:last-child {
+  border-radius: 0 8px 8px 0;
+  border-right: 1px solid rgba(31, 59, 45, 0.1);
+}
+
+
+
