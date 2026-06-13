@@ -3,12 +3,18 @@ import Image from "next/image";
 import {
   Activity,
   ArrowRight,
+  BellRing,
+  Building2,
   CircleCheck,
+  ClipboardList,
   Eye,
   Fingerprint,
+  Gauge,
+  Landmark,
   LockKeyhole,
   ShieldCheck,
   Siren,
+  UsersRound,
   UserCheck,
 } from "lucide-react";
 import { AppShell, FeatureIcon, GlassCard, featureCards } from "@/components/ui";
@@ -44,12 +50,90 @@ const timelineSteps = [
   },
 ];
 
+const authorityFeatures = [
+  { label: "AI Fraud Alerts", icon: BellRing },
+  { label: "Student Verification Monitoring", icon: UsersRound },
+  { label: "Complaint Management", icon: ClipboardList },
+  { label: "Exam Center Trust Scores", icon: Gauge },
+  { label: "National Analytics Dashboard", icon: Activity },
+];
+
 export default function Home() {
   return (
     <AppShell>
       <main>
-        <section className="grid min-h-[calc(100vh-74px)] items-center lg:grid-cols-2">
-          <div className="float-in mx-auto flex w-full max-w-7xl flex-col justify-center px-4 py-14 sm:px-6 lg:min-h-[calc(100vh-74px)] lg:px-8">
+        <section className="relative grid min-h-[calc(100vh-74px)] items-center lg:grid-cols-2">
+          <div className="pointer-events-none absolute right-4 top-5 z-20 hidden w-[24rem] max-w-[calc(50vw-2rem)] lg:block xl:right-8">
+            <Link
+              href="/authority-login"
+              title="Secure access for authorized examination authorities"
+              aria-label="Government Authority Portal. Secure access for authorized examination authorities."
+              className="group pointer-events-auto block overflow-hidden rounded-lg border border-sky-300/25 bg-gradient-to-br from-[#07142f] via-[#0B2A5F] to-[#041127] p-5 text-white shadow-[0_26px_70px_rgba(7,20,47,0.34)] transition duration-300 hover:-translate-y-1 hover:scale-[1.015] hover:border-sky-200/55 hover:shadow-[0_34px_88px_rgba(7,20,47,0.45)]"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <span className="flex size-13 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-sky-100 shadow-[inset_0_1px_rgba(255,255,255,0.22)]">
+                  <ShieldCheck size={27} />
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200/20 bg-sky-100/10 px-3 py-1 text-xs font-semibold uppercase text-sky-100">
+                  <Landmark size={13} />
+                  Official Access
+                </span>
+              </div>
+              <div className="mt-5">
+                <p className="text-xs font-semibold uppercase text-sky-200/85">Central Monitoring System</p>
+                <h2 className="mt-2 text-2xl font-medium leading-tight text-white">Government Authority Portal</h2>
+                <p className="mt-3 text-sm leading-6 text-sky-50/78">
+                  For NTA, CET Cell, UPSC, SSC, and Education Board Officials
+                </p>
+              </div>
+              <div className="mt-5 grid gap-2">
+                {authorityFeatures.map((feature) => {
+                  const Icon = feature.icon;
+
+                  return (
+                    <span key={feature.label} className="flex items-center gap-2 text-xs font-semibold text-sky-50/86">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-white/10 text-sky-200">
+                        <Icon size={14} />
+                      </span>
+                      {feature.label}
+                    </span>
+                  );
+                })}
+              </div>
+              <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-sm font-semibold text-sky-100">
+                <span className="inline-flex items-center gap-2">
+                  <Building2 size={16} />
+                  Authorized officials only
+                </span>
+                <ArrowRight size={18} className="transition duration-300 group-hover:translate-x-1" />
+              </div>
+            </Link>
+          </div>
+
+          <div className="float-in mx-auto flex w-full max-w-7xl flex-col justify-center px-4 py-10 sm:px-6 lg:min-h-[calc(100vh-74px)] lg:px-8 lg:py-14">
+            <Link
+              href="/authority-login"
+              title="Secure access for authorized examination authorities"
+              className="group mb-8 block overflow-hidden rounded-lg border border-sky-300/25 bg-gradient-to-br from-[#07142f] via-[#0B2A5F] to-[#041127] p-5 text-white shadow-[0_24px_60px_rgba(7,20,47,0.28)] transition duration-300 hover:-translate-y-1 hover:border-sky-200/55 lg:hidden"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <span className="flex size-12 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-sky-100">
+                  <ShieldCheck size={24} />
+                </span>
+                <span className="rounded-full border border-sky-200/20 bg-sky-100/10 px-3 py-1 text-xs font-semibold uppercase text-sky-100">
+                  Official Access
+                </span>
+              </div>
+              <p className="mt-5 text-xs font-semibold uppercase text-sky-200/85">Central Monitoring System</p>
+              <h2 className="mt-2 text-2xl font-medium leading-tight text-white">Government Authority Portal</h2>
+              <p className="mt-3 text-sm leading-6 text-sky-50/78">
+                For NTA, CET Cell, UPSC, SSC, and Education Board Officials
+              </p>
+              <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-sm font-semibold text-sky-100">
+                <span>Authorized officials only</span>
+                <ArrowRight size={18} className="transition duration-300 group-hover:translate-x-1" />
+              </div>
+            </Link>
             <h1 className="text-balance max-w-4xl text-5xl font-medium leading-tight tracking-normal text-slate-950 sm:text-6xl lg:text-7xl">
               Making Every Exam Fair, Secure and Transparent
             </h1>
